@@ -1,0 +1,162 @@
+<html>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js" type="text/javascript"></script>
+<script src="https://code.jquery.com/jquery-3.3.1.js" type="text/javascript"></script>
+<script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js" type="text/javascript"></script>
+
+<style type="text/css" media="screen">
+
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  columns: 2;
+-webkit-columns: 2;
+-moz-columns: 2;
+}
+
+li {
+  font: 400 22px/1.5 Helvetica, Verdana, sans-serif;
+
+  border-bottom: 1px solid #ccc;
+
+}
+
+li:last-child {
+  border: none;
+}
+
+li a {
+  text-decoration: none;
+  color: #000;
+  display: block;
+  width: 200px;
+
+  -webkit-transition: font-size 0.3s ease, background-color 0.3s ease;
+  -moz-transition: font-size 0.3s ease, background-color 0.3s ease;
+  -o-transition: font-size 0.3s ease, background-color 0.3s ease;
+  -ms-transition: font-size 0.3s ease, background-color 0.3s ease;
+  transition: font-size 0.3s ease, background-color 0.3s ease;
+}
+.putred{
+  color:red;
+}
+.putgreen{background-color: azure;}
+
+li a:hover {
+  font-size: 30px;
+  background: #f6f6f6;
+}
+#outer {
+  width: 95% ;
+  margin-left: auto ;
+  margin-right: auto ;
+}
+
+</style>
+
+
+
+<script type="text/javascript">
+// Create a client instance
+
+
+  client = new Paho.MQTT.Client("192.168.2.111", Number(9001), "clientId-Webplot");
+  client.onConnectionLost = onConnectionLost;
+  client.onMessageArrived = onMessageArrived;
+
+
+
+  // connect the client
+  client.connect({onSuccess:function(){
+    alert('connected')
+    console.log("MQTT connected");
+    client.subscribe('stat/wlanstate', {qos:2})
+    client.subscribe('stat/wlan', {qos:2})
+  }});
+
+
+
+
+  // called when the client loses its connection
+  function onConnectionLost(responseObject) {
+    console.log("error - reconnecting");
+    if (responseObject.errorCode !== 0)
+      console.log("onConnectionLost:"+responseObject.errorMessage);
+    client.connect({onSuccess:onConnect});
+  }
+
+  var lastseen=""
+  function onMessageArrived(message) {
+    // alert(message)
+    //console.log("onMessageArrived: topic: "+message.payloadString + " data: " + message.destinationName);
+    console.log(message.destinationName);
+    if(message.destinationName=="stat/wlan"){
+      var entry=JSON.parse(message.payloadString);
+      console.log(entry);
+      var text="";
+      if(entry.state==1){
+        text="Hallo ";
+        var header=$('h2.last');
+        header.empty();
+        header.text(text+entry.mac);
+        lastseen=entry.mac;
+      }
+      else
+        text="Tschau ";
+
+      return;
+    }
+
+    var dataset=[];
+    var devices=JSON.parse(message.payloadString);
+
+
+    for (var key in devices) {
+      if (devices.hasOwnProperty(key)) {
+        var entry=[];
+        entry[0]=devices[key].mac;
+        var b=Date.now();
+        var t1= new Date(b);
+
+        var t2=new Date(devices[key].lseen);
+        var timeDiff = Math.abs(t1.getTime() - t2.getTime());
+        var diffDmin = (timeDiff / (1000 * 60 )).toFixed(2);;
+        entry[1]=diffDmin;
+        entry[2]=devices[key].state;
+        dataset.push(entry);
+        //alert(devices[key].mac);
+      }
+    }
+    dataset.sort(function(a, b){
+      return a[1]-b[1];
+    });
+
+    console.log(dataset);
+    var cList = $('ul.mylist')
+    cList.empty();
+    $.each(dataset, function(i)
+    {
+    var li = $('<li/>')
+        .text(dataset[i][0]+"  --  "+dataset[i][1]);
+    if(dataset[i][2]==0){
+          li.addClass('putred');
+        }
+    if(lastseen==dataset[i][0]){
+      li.addClass('putgreen');
+    }
+    li.appendTo(cList);
+});
+
+  }
+
+
+</script>
+
+<body>
+  <div id="outer">
+  <h2 class="last">Hier</h2>
+  <ul class="mylist">
+  </ul>
+</div>
+</body>
+</html>
